@@ -1,0 +1,26 @@
+<mujoco model="ExoskeletonURDFmodel">
+  <compiler angle="radian" meshdir="/home/chenshuo/PycharmProjects/move_sim/SMPL/Exoskeleton3DOF_URDFmodel/meshes/"/>
+
+  <asset>
+    <mesh name="sim_torso_prt" file="sim_torso_prt.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="sim_rightleg_prt" file="sim_rightleg_prt.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="sim_leftleg_prt" file="sim_leftleg_prt.stl" scale="0.001 0.001 0.001"/>
+  </asset>
+
+  <worldbody>
+    <geom type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="sim_torso_prt"/>
+    <geom type="mesh" rgba="1 1 1 1" mesh="sim_torso_prt"/>
+    <body name="ExoRightLeg" pos="-0.00595245 -0.147807 -0.0825556" quat="0.995953 0.0898785 0 0">
+      <inertial pos="-0.0291201 -0.00378114 -0.0342128" quat="0.970139 -0.106966 -0.0791591 0.202785" mass="1.39397" diaginertia="0.00928457 0.00892086 0.00172993"/>
+      <joint name="jActuatedRightHip_rotx" pos="0 0 0" axis="1 0 0" range="-2.0944 0.261799" actuatorfrcrange="-50000 50000" damping="0.223"/>
+      <geom pos="0.00595245 0.147807 0.0825556" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="sim_rightleg_prt"/>
+      <geom pos="0.00595245 0.147807 0.0825556" quat="1 0 0 0" type="mesh" rgba="1 1 1 1" mesh="sim_rightleg_prt"/>
+    </body>
+    <body name="ExoLeftLeg" pos="0.425543 -0.147807 -0.0825556" quat="0.995953 0.0898785 0 0">
+      <inertial pos="0.025847 -0.00274416 -0.0319785" quat="0.976328 -0.0948369 0.0639627 -0.183569" mass="1.6863" diaginertia="0.0106474 0.0102117 0.00216388"/>
+      <joint name="jActuatedLeftHip_rotx" pos="0 0 0" axis="-1 0 0" range="-0.261799 2.0944" actuatorfrcrange="-50000 50000" damping="0.223"/>
+      <geom pos="-0.425543 0.147807 0.0825556" quat="1 0 0 0" type="mesh" contype="0" conaffinity="0" group="1" density="0" rgba="1 1 1 1" mesh="sim_leftleg_prt"/>
+      <geom pos="-0.425543 0.147807 0.0825556" quat="1 0 0 0" type="mesh" rgba="1 1 1 1" mesh="sim_leftleg_prt"/>
+    </body>
+  </worldbody>
+</mujoco>

@@ -1,0 +1,239 @@
+<mujoco model="table_arena">
+
+  <asset>
+    <texture builtin="gradient" height="256" rgb1=".9 .9 1." rgb2=".2 .3 .4" type="skybox" width="256"/>
+    <texture file="../textures/light-gray-floor-tile.png" type="2d" name="texplane"/>
+    <material name="floorplane" reflectance="0.01" shininess="0.0" specular="0.0" texrepeat="2 2" texture="texplane" texuniform="true"/>
+    <!-- ceramic table texture and material-->
+    <texture file="../textures/ceramic.png" type="cube" name="tex-ceramic"/>
+    <material name="table_ceramic" reflectance="0.0" shininess="0.0" specular="0.2" texrepeat="1 1" texture="tex-ceramic" />
+    <!-- steel legs -->
+    <texture file="../textures/steel-brushed.png" type="cube" name="tex-steel-brushed"/>
+    <material name="table_legs_metal" reflectance="0.8" shininess="0.8" texrepeat="1 1" texture="tex-steel-brushed" />
+    <!-- plaster walls -->
+    <texture file="../textures/light-gray-plaster.png" type="2d" name="tex-light-gray-plaster"/>
+    <material name="walls_mat" reflectance="0.0" shininess="0.1" specular="0.1" texrepeat="3 3" texture="tex-light-gray-plaster" texuniform="true" />
+    <!-- added table texture and material for domain randomization -->
+    <texture  name="textable" builtin="flat" height="512" width="512" rgb1="0.5 0.5 0.5" rgb2="0.5 0.5 0.5"/>
+    <material name="table_mat" texture="textable" />
+
+    <texture file="../textures/soda.png" type="2d" name="soda"/>
+    <material name="box_metal" reflectance="0.8" shininess="0.8" texrepeat="1 1" texture="soda" />
+  </asset>
+
+  <include file="../full_body_assets.xml"/>
+  <include file="../1017/assets/bi_myoarm_assets.xml"/>
+
+  <worldbody>
+    <site name="x" pos="0.075 0 0" rgba="1 0 0 1" type="box" size="0.1 0.003 0.003"/>
+    <site name="y" pos="0 0.075 0" rgba="0 1 0 1" type="box" size="0.003 0.1 0.003"/>
+    <site name="z" pos="0 0 0.075" rgba="0 0 1 1" type="box" size="0.003 0.003 0.1"/>
+    <body mocap="true" name="mocap_0_body_ani" pos="-0.101 0 1.0315" quat="1 0 0 0">
+      <site pos="0 0 0.200" size="0.003 0.003 0.200" type="box" name="body_0" rgba="0 0 1 0.5"/>
+    </body>
+    <body mocap="true" name="mocap_12_body_ani" pos="-0.1107 -0.0001 1.4315" quat="1 0 0 0">
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <!--    左腿的5个chain，从上往下123分别为髋关节/膝关节/踝关节-->
+    <body mocap="true" name="mocap_0_ani" pos="-0.101 0 1.0315" quat="1 0 0 0">
+      <site pos="0 0 -0.091" size="0.003 0.003 0.091" type="box" name="left_0" rgba="0 0 1 0.5"/>
+    </body>
+    <body mocap="true" name="mocap_1_ani" pos="-0.05628 -0.07724 0.87185" quat="1 0 0 0">
+      <site pos="0 0 -0.203" size="0.003 0.003 0.203" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_4_ani" pos="-0.05269 -0.0769 0.4654" quat="1 0 0 0">
+      <site pos="0 0 -0.200" size="0.003 0.003 0.200" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_7_ani" pos="-0.06269 -0.0768 0.0654" quat="1 0 0 0">
+      <site pos="0.069 0 0" size="0.069 0.003 0.003" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_10_ani" pos="0.0673 -0.0858 0.0214" quat="1 0 0 0">
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+<!--右腿的5个动捕点-->
+    <body mocap="true" name="mocap_0_right_ani" pos="-0.101 0 1.0315" quat="1 0 0 0">
+      <site pos="0 0 -0.091" size="0.003 0.003 0.091" type="box" name="right_0" rgba="0 0 1 0.5"/>
+    </body>
+    <body mocap="true" name="mocap_2_ani" pos="-0.05628 0.07728 0.87291" quat="1 0 0 0">
+      <site pos="0 0 -0.203" size="0.003 0.003 0.203" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_5_ani" pos="-0.05269 0.0771 0.4654" quat="1 0 0 0">
+      <site pos="0 0 -0.200" size="0.003 0.003 0.200" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_8_ani" pos="-0.06227 0.07717 0.0654" quat="1 0 0 0">
+      <site pos="0.069 0 0" size="0.069 0.003 0.003" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 1" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_11_ani" pos="0.0673 0.0862 0.0215" quat="1 0 0 0">
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+
+    <!--    右手的5个chain，从上往下123分别为髋关节/膝关节/踝关节-->
+    <body mocap="true" name="mocap_12_ani" pos="-0.1107 -0.0001 1.4315" quat="1 0 0 0">
+      <site pos="0 0.0829 0" size="0.003 0.0829 0.003" type="box" name="right_12" rgba="0 0 1 0.5"/>
+    </body>
+    <body mocap="true" name="mocap_17_ani" pos="-0.09898 0.1631 1.4047" quat="1 0 0 0">
+      <site pos="0 0 -0.1455" size="0.003 0.003 0.1455" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_19_ani" pos="-0.09289 0.1511 1.1143" quat="1 0 0 0">
+      <site pos="0 0 -0.129" size="0.003 0.003 0.129" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_21_ani" pos="-0.07445 0.1963 0.8608" quat="1 0 0 0">
+      <site pos="0 0 -0.063" size="0.003 0.003 0.063" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_41_ani" pos="-0.0681 0.2141 0.736" quat="1 0 0 0">
+      <site pos="0 0 0" rgba="1 0 1 0.5" type="sphere" size="0.01"/>
+    </body>
+<!--左手的5个动捕点-->
+    <body mocap="true" name="mocap_12_left_ani" pos="-0.1107 -0.0001 1.4315" quat="1 0 0 0">
+      <site pos="0 -0.0829 0" size="0.003 0.0829 0.003" type="box" name="left_12" rgba="0 0 1 0.5"/>
+    </body>
+    <body mocap="true" name="mocap_16_ani" pos="-0.09924 -0.1633 1.4043" quat="1 0 0 0">
+      <site pos="0 0 -0.1455" size="0.003 0.003 0.1455" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_18_ani" pos="-0.09313 -0.1507 1.1139" quat="1 0 0 0">
+      <site pos="0 0 -0.129" size="0.003 0.003 0.129" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_20_ani" pos="-0.07476 -0.1954 0.8604" quat="1 0 0 0">
+      <site pos="0 0 -0.063" size="0.003 0.003 0.063" type="box" rgba="0 0 1 0.5"/>
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <body mocap="true" name="mocap_26_ani" pos="-0.0684 -0.2130 0.7356" quat="1 0 0 0">
+      <site pos="0 0 0" rgba="0 1 0 0.5" type="sphere" size="0.01"/>
+    </body>
+    <!-- 跟踪 -->
+    <body mocap="true" name="mocap_0" pos="-0.101 0 1.0315" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_12" pos="-0.1107 -0.0001 1.4315" quat="1 0 0 0"></body>
+    <!--    左腿的5个chain，从上往下123分别为髋关节/膝关节/踝关节-->
+    <body mocap="true" name="mocap_1" pos="-0.05628 -0.07724 0.87185" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_4" pos="-0.05269 -0.0769 0.4654" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_7" pos="-0.06269 -0.0768 0.0654" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_10" pos="0.0673 -0.0858 0.0214" quat="1 0 0 0"></body>
+<!--右腿的5个动捕点-->
+    <body mocap="true" name="mocap_2" pos="-0.05628 0.07728 0.87291" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_5" pos="-0.05269 0.0771 0.4654" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_8" pos="-0.06227 0.07717 0.0654" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_11" pos="0.0673 0.0862 0.0215" quat="1 0 0 0"></body>
+    <!--    右手的5个chain，从上往下123分别为髋关节/膝关节/踝关节-->
+    <body mocap="true" name="mocap_17" pos="-0.09898 0.1631 1.4047" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_19" pos="-0.09289 0.1511 1.1143" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_21" pos="-0.07445 0.1963 0.8608" quat="1 0 0 0"></body>
+    <!-- <body mocap="true" name="mocap_41_ani" pos="-0.0681 0.2141 -0.2140" quat="1 0 0 0"></body> -->
+<!--左手的5个动捕点-->
+    <body mocap="true" name="mocap_16" pos="-0.09924 -0.1633 1.4043" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_18" pos="-0.09313 -0.1507 1.1139" quat="1 0 0 0"></body>
+    <body mocap="true" name="mocap_20" pos="-0.07476 -0.1954 0.8604" quat="1 0 0 0"></body>
+    <!-- <body mocap="true" name="mocap_26_ani" pos="-0.0684 -0.2130 -0.2144" quat="1 0 0 0"></body> -->
+
+    <!-- Floor -->
+    <body name="ground-plane" pos="0 0 0.05">
+      <geom condim="3" group="1" material="floorplane" name="ground-plane" pos="0 0 0" size="3 3 .125" type="plane"/>
+    </body>
+    <!-- Walls (visual only) -->
+<!--    <geom pos="-1.25 2.25 1.5" quat="0.6532815 0.6532815 0.2705981 0.2705981" size="1.06 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_leftcorner_visual" material="walls_mat"/>-->
+<!--    <geom pos="-1.25 -2.25 1.5" quat="0.6532815 0.6532815 -0.2705981 -0.2705981" size="1.06 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_rightcorner_visual" material="walls_mat"/>-->
+<!--    <geom pos="1.25 3 1.5" quat="0.7071 0.7071 0 0" size="1.75 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_left_visual" material="walls_mat"/>-->
+<!--    <geom pos="1.25 -3 1.5" quat="0.7071 -0.7071 0 0" size="1.75 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_right_visual" material="walls_mat"/>-->
+<!--    <geom pos="-2 0 1.5" quat="0.5 0.5 0.5 0.5" size="1.5 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_rear_visual" material="walls_mat"/>-->
+<!--    <geom pos="3 0 1.5" quat="0.5 0.5 -0.5 -0.5" size="3 1.5 0.01" type="box" conaffinity="0" contype="0" group="1" name="wall_front_visual" material="walls_mat"/>-->
+    <!-- Table body -->
+    <body name="table" pos="0.93 0 0.92">
+      <geom pos="0 0 0" size="0.4 0.4 0.05" type="box" group="0" name="table_collision" friction="1 0.005 0.0001"/>
+      <geom pos="0 0 0" size="0.4 0.4 0.05" type="box" conaffinity="0" contype="0" group="1" name="table_visual" material="table_ceramic"/>
+      <site pos="0 0 0.4" name="table_top" size="0.001 0.001 0.001" rgba="0 0 0 0"/>
+      <!-- Legs (visual only) -->
+      <geom pos="0.3 0.3 -0.5" size="0.02 0.45" type="cylinder" conaffinity="0" contype="0" group="1" name="table_leg1_visual" material="table_legs_metal"/>
+      <geom pos="0.3 -0.3 -0.5" size="0.02 0.45" type="cylinder" conaffinity="0" contype="0" group="1" name="table_leg2_visual" material="table_legs_metal"/>
+      <geom pos="-0.3 0.3 -0.5" size="0.02 0.45" type="cylinder" conaffinity="0" contype="0" group="1" name="table_leg3_visual" material="table_legs_metal"/>
+      <geom pos="-0.3 -0.3 -0.5" size="0.02 0.45" type="cylinder" conaffinity="0" contype="0" group="1" name="table_leg4_visual" material="table_legs_metal"/>
+    </body>
+    <!--    box base-->
+    <body name="box_base" pos="0.33 0 0.15">
+      <geom pos="0 0 0" size="0.15 0.1 0.15" type="box" conaffinity="0" contype="0" group="1" name="box_base" material="box_metal"/>
+    </body>
+    <!-- box body   -->
+    <body name="box_move" pos="0.33 0 0.45">
+      <geom pos="0 0 0" size="0.15 0.1 0.15" type="box" conaffinity="0" contype="0" group="1" name="box_visual" material="box_metal"/>
+      <inertial pos="0 0 0" mass="0.7" />
+      <joint name="box_move_tx" pos="0 0 0" axis="1 0 0" type="slide" range="-5 5" damping="0"/>
+      <joint name="box_move_ty" pos="0 0 0" axis="0 1 0" type="slide" range="-1 2" damping="0" user="0.93"/>
+      <joint name="box_move_tz" pos="0 0 0" axis="0 0 1" type="slide" range="-3 3" damping="0"/>
+      <joint name="box_move_tilt" pos="0 0 0" axis="0 0 1" range="-1.571 1.571" damping="0"/>
+      <joint name="box_move_list" pos="0 0 0" axis="1 0 0" range="-1.571 1.571" damping="0"/>
+      <joint name="box_move_rotation" pos="0 0 0" axis="0 1 0" range="-1.571 1.571" damping="0"/>
+      <body name="grap_1" pos="-0.08 -0.1 0">
+        <site name="grap_1" pos="0 0 0" rgba="0 1 0 1" type="sphere" size="0.01"/>
+        <site name="grapx" pos="0.075 0 0" rgba="1 0 0 1" type="box" size="0.1 0.003 0.003"/>
+        <site name="grapy" pos="0 0.075 0" rgba="0 1 0 1" type="box" size="0.003 0.1 0.003"/>
+        <site name="grapz" pos="0 0 0.075" rgba="0 0 1 1" type="box" size="0.003 0.003 0.1"/>
+      </body>
+      <body name="grap_2" pos="-0.08 0.1 0">
+        <site name="grap_2" pos="0 0 0" rgba="0 1 0 1" type="sphere" size="0.01"/>
+      </body>
+    </body>
+    <light pos="1.0 1.0 1.5" dir="-0.2 -0.2 -1" specular="0.3 0.3 0.3" directional="true" castshadow="false"/>
+    <include file="../full_body_body.xml"/>
+  </worldbody>
+  <equality>
+    <weld body1="SMPL_26" body2="grap_1" relpose="0 0 0 0 0.707 0 0.707" active="false"/>
+    <weld body1="SMPL_41" body2="grap_2" relpose="0 0 0 0 0.707 0 0.707" active="false"/>
+  </equality>
+  <contact>
+    <pair geom1="box_base" geom2="box_visual"/>
+    <pair geom1="box_visual" geom2="table_visual"/>
+    <pair geom1="ground-plane" geom2="box_visual"/>
+    <pair geom1="box_visual" geom2="pelvis_geom_1"/>
+    <pair geom1="box_visual" geom2="pelvis_geom_1"/>
+    <pair geom1="box_visual" geom2="pelvis_geom_2"/>
+    <pair geom1="box_visual" geom2="pelvis_geom_3"/>
+<!--    <pair geom1="box_visual" geom2="femur_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="tibia_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="tibia_r_geom_2"/>-->
+<!--    <pair geom1="box_visual" geom2="talus_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="calcn_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="toes_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="patella_r_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="femur_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="tibia_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="tibia_l_geom_2"/>-->
+<!--    <pair geom1="box_visual" geom2="talus_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="calcn_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="toes_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="patella_l_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="torso_geom_1"/>-->
+<!--    <pair geom1="box_visual" geom2="torso_geom_2"/>-->
+<!--    <pair geom1="box_visual" geom2="torso_geom_3"/>-->
+
+    <pair geom1="ground-plane" geom2="pelvis_geom_1"/>
+    <pair geom1="ground-plane" geom2="pelvis_geom_1"/>
+    <pair geom1="ground-plane" geom2="pelvis_geom_2"/>
+    <pair geom1="ground-plane" geom2="pelvis_geom_3"/>
+    <pair geom1="ground-plane" geom2="femur_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="tibia_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="tibia_r_geom_2"/>
+    <pair geom1="ground-plane" geom2="talus_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="calcn_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="toes_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="patella_r_geom_1"/>
+    <pair geom1="ground-plane" geom2="femur_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="tibia_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="tibia_l_geom_2"/>
+    <pair geom1="ground-plane" geom2="talus_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="calcn_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="toes_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="patella_l_geom_1"/>
+    <pair geom1="ground-plane" geom2="torso_geom_1"/>
+    <pair geom1="ground-plane" geom2="torso_geom_2"/>
+    <pair geom1="ground-plane" geom2="torso_geom_3"/>
+  </contact>
+</mujoco>
