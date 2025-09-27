@@ -2,6 +2,7 @@ import collections
 import os
 import numpy as np
 import yaml
+import pandas as pd
 import matplotlib.pyplot as plt
 from  myosuite.utils import gym
 import yaml
@@ -53,6 +54,14 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
         self.hip_joints = ['hip_flexion_r','hip_adduction_r','hip_rotation_r',
                           'hip_flexion_l','hip_adduction_l','hip_rotation_l']
         self.hip_joints_id = {name: self.sim.model.joint(name).id for name in self.hip_joints}
+        # 需要记录激活程度的肌肉
+        self.muscle_tendon = ['soleus_r_tendon','gasmed_r_tendon','tibant_r_tendon','recfem_r_tendon',
+                              'vasmed_r_tendon','vaslat140_r_tendon','semiten_r_tendon','bflh140_r_tendon','glmed1_r_tendon',
+                              'soleus_l_tendon', 'gasmed_l_tendon', 'tibant_l_tendon', 'recfem_l_tendon',
+                              'vasmed_l_tendon', 'vaslat140_l_tendon', 'semiten_l_tendon', 'bflh140_l_tendon','glmed1_l_tendon'
+                              ]
+        self.muscle_tendon_id = {name: self.sim.model.tendon(name).id for name in self.muscle_tendon}
+        self.muscle_activation = {name: [] for name in self.muscle_tendon}
         # 初始化，exo关节数据有没有
         self.sim.data.qpos[:] = joint_qpos[0]
         qvel = np.zeros(len(joint_qvel[0]))
@@ -94,7 +103,7 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
         if self.sim is None:
             raise TypeError("sim must be instantiated for setup to run")
         # resolve view
-        self.mujoco_render_frames = False
+        self.mujoco_render_frames = True
         self.offline_render = offline_render
         self.device_id = device_id
         self.rwd_viz = rwd_viz
@@ -143,7 +152,7 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
         self.exo_force_l_last = 0
         self.n = 0
         self.N = 2
-        self.run_exo = False
+        self.run_exo = True
         self.qfrc_actuator_r_avrage = []
         self.qfrc_actuator_l_avrage = []
         observation = self.reset()
@@ -154,6 +163,41 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
                                     dtype=np.float64)
 
         return
+
+    def activation_2_color(self, activation):
+        # 确保激活度在 [0, 1] 范围内
+        activation = np.clip(activation, 0.0, 1.0)
+        if activation <= 0.5:
+            # 从蓝 (0,0,1) 渐变到绿 (0,1,0)
+            r = 0.0
+            g = 0.0
+            b = 1.0  # 在0.5时达到0.0
+        else:
+            # 从绿 (0,1,0) 渐变到红 (1,0,0)
+            r = 1.0  # 在1.0时达到1.0
+            g = 0.0  # 在1.0时达到0.0
+            b = 0.0
+        return [r, g, b, 1.0]  # RGBA，A(alpha)固定为1.0
+
+    def activation_to_color(self, model, data):
+        color = []
+        N = len(data.ctrl) - 2
+        activation = data.ctrl
+        # 根据激活度计算颜色
+        for i in range(N):
+            color.append(self.activation_2_color(activation[i + 2]))
+        for i in range(N):
+            model.tendon_rgba[i] = color[i]
+
+    def record_muscle_activation(self):
+        for name in self.muscle_tendon:
+            self.muscle_activation[name].append(self.sim.data.ctrl[self.muscle_tendon_id[name]])
+        if self.flag_animation >= self.length_data - 1:
+            df = pd.DataFrame(self.muscle_activation)
+            file_path = '/home/chenshuo/PycharmProjects/move_sim/SMPL/muscle_activation.csv'
+            df.to_csv(file_path, sep="\t", index=False)
+            self.muscle_activation = {name: [] for name in self.muscle_tendon}
+            print("记录一次肌肉激活")
 
     def step(self,a, **kwargs):
 
@@ -189,43 +233,37 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
                                     - self.sim.data.qfrc_bias[self.hip_joints_id['hip_flexion_l']]
                                     + self.sim.data.qfrc_passive[self.hip_joints_id['hip_flexion_l']])
             if np.abs(self.qfrc_actuator_l) < 50:
-                self.exo_force_l = np.clip(0.05 * self.qfrc_actuator_l, -5, 5)
-            elif np.abs(self.qfrc_actuator_l) < 150:
-                self.exo_force_l = np.clip(0.2 * self.qfrc_actuator_l, -30, 30)
+                self.exo_torque_l = np.clip(0.1 * self.qfrc_actuator_l, -5, 5)
+            elif np.abs(self.qfrc_actuator_l) < 100:
+                self.exo_torque_l = np.clip(0.2 * self.qfrc_actuator_l, -20, 20)
             else:
-                self.exo_force_l = self.qfrc_actuator_l * 0.4
+                self.exo_torque_l = self.qfrc_actuator_l * 0.4
 
             if np.abs(self.qfrc_actuator_r) < 50:
-                self.exo_force_r = np.clip(0.05 * self.qfrc_actuator_r, -5, 5)
-            elif np.abs(self.qfrc_actuator_r) < 150:
-                self.exo_force_r = np.clip(0.2 * self.qfrc_actuator_r, -30, 30)
+                self.exo_torque_r = np.clip(0.1 * self.qfrc_actuator_r, -5, 5)
+            elif np.abs(self.qfrc_actuator_r) < 100:
+                self.exo_torque_r = np.clip(0.2 * self.qfrc_actuator_r, -20, 20)
             else:
-                self.exo_force_r =  self.qfrc_actuator_r * 0.4
+                self.exo_torque_r =  self.qfrc_actuator_r * 0.4
 
-            self.exo_force_l =  0 * self.exo_force_l_last +  self.exo_force_l
-            self.exo_force_r =   0 * self.exo_force_r_last +  self.exo_force_r
-            self.exo_force_l_last = self.exo_force_l
-            self.exo_force_r_last = self.exo_force_r
             if self.run_exo:
-                self.sim.data.ctrl[0] = self.exo_force_l
-                self.sim.data.ctrl[1] = self.exo_force_r
+                self.sim.data.ctrl[0] = self.exo_torque_l
+                self.sim.data.ctrl[1] = self.exo_torque_r
             else:
                 self.sim.data.ctrl[0] = 0
                 self.sim.data.ctrl[1] = 0
-
         self.plot_draw()
-        if self.apply_muscle_activate:
-            self.sim.advance(substeps=self.frame_skip, render=self.render_bool)
-            self.sim.forward()
-            self.count = self.count + 1
-            if (self.offline_render):
-                self.frame = self.render_offscreen()
-            else:
-                self.frame = None
-            self.muscle_activate = []
+        self.activation_to_color(self.sim.model, self.sim.data)
+        self.record_muscle_activation()
+        self.sim.advance(substeps=self.frame_skip, render=self.render_bool)
+        self.sim.forward()
 
-        self.last_ctrl = a
-
+        self.count = self.count + 1
+        if (self.offline_render):
+            self.frame = self.render_offscreen()
+        else:
+            self.frame = None
+        self.muscle_activate = []
         return self.forward(**kwargs)
 
     @implement_for("gym", None, "0.24")
@@ -428,6 +466,7 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
     def mj_render(self):
         self.sim.renderer.render_to_window()
 
+
     def viewer_setup(self,distance=2.5,azimuth=90,elevation=-30, lookat=None, render_actuator=None, render_tendon=None):
         self.sim.renderer.set_free_camera_settings(
             distance=distance,
@@ -507,10 +546,14 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
             self.x = []
             self.y_r = []
             self.y_l = []
+            self.exo_t_l = []
+            self.exo_t_r = []
         self.qfrc_norm_r += np.linalg.norm(self.qfrc_actuator_r)
         self.x.append(self.count)
         self.y_r.append(self.qfrc_actuator_r.__float__())
         self.y_l.append(self.qfrc_actuator_l.__float__())
+        self.exo_t_r.append(self.exo_torque_r.__float__())
+        self.exo_t_l.append(self.exo_torque_l.__float__())
         if self.flag_animation >= self.length_data - 1:
             self.n += 1
             self.qfrc_actuator_l_avrage = ([x * (self.n - 1) / self.n for x in self.qfrc_actuator_l_avrage]
@@ -527,6 +570,8 @@ class EnvCarry_WithExo(gym.Env, gym.utils.EzPickle, ObsVecDict):
                     'x': self.x,
                     'qfrc_actuator_r': self.y_r,
                     'qfrc_actuator_l': self.y_l,
+                    'exo_torque_l': self.exo_t_l,
+                    'exo_torque_r': self.exo_t_r,
                 }
                 with open(qfrc_actuator_with_exo_path,'w') as file:
                     yaml.safe_dump(data_to_save_yaml, file, default_flow_style=False)

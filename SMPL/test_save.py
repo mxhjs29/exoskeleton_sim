@@ -1,5 +1,4 @@
 import numpy as np
-from jinja2.nodes import Impossible
 from myosuite.envs.env_variants import register
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
@@ -7,6 +6,7 @@ from stable_baselines3.common.vec_env import VecNormalize
 import time
 import yaml
 import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 import mujoco.viewer
 from triton.language.extra.cuda.libdevice import fast_logf
 
@@ -45,7 +45,6 @@ def create_env(test_exo, vision):
         )
 
 
-
 policy_test = True
 test_exo = True
 clip_obs = 10
@@ -71,36 +70,12 @@ def main():
         else:
             env = make_vec_env('EnvCarry_WithoutExoWeld-v1', n_envs=1)
             env_norm = VecNormalize(env, norm_obs=True, norm_reward=True, clip_obs=clip_obs)
-
         obs = env_norm.reset()
         model = PPO.load(PPO_policy_path)
-        r = 0
-        a = 0
-        a_sum = 0
-        count = 0
-        N = 10
-        time_start = 0
-        flag = 0
         while True:
-            if flag == 0:
-                time_start = time.time()
             action , _ = model.predict(obs)
-            a += np.linalg.norm(action)
             obs, rewards, dones, info = env_norm.step(action)
-            r += rewards
-            flag += 1
-            if dones == True:
-                time_end = time.time()
-                flag = 0
-                print("频率为",779/(time_end-time_start))
-                count += 1
-                print("第",count,"次肌肉激活：",a)
-                a_sum += a
-                a = 0
-                if count == N:
-                    print("肌肉激活平均值：", a_sum / N)
-                    a_sum = 0
-                    count = 0
+
     else:
         model_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/mjc/mj_fullbody_with_exo_carrying_weld.xml"
         model = mujoco.MjModel.from_xml_path(model_path)
@@ -110,15 +85,18 @@ def main():
             body_name = data.model.body(body_id).name
             if body_name == "box_move":
                 print("box_mass: ",data.model.body_mass[body_id])
+
         with open(qfrc_without_exo_path, 'r') as file:
             qfrc_without_exo = yaml.safe_load(file)
         x = np.array(qfrc_without_exo['x'])
         qfrc_without_exo_r = np.array(qfrc_without_exo['qfrc_actuator_r'])
         qfrc_without_exo_l = np.array(qfrc_without_exo['qfrc_actuator_l'])
+
         with open(qfrc_with_zero_exo_path, 'r') as file:
             qfrc_without_exo = yaml.safe_load(file)
         qfrc_with_zero_exo_r = np.array(qfrc_without_exo['qfrc_actuator_r'])
         qfrc_with_zero_exo_l = np.array(qfrc_without_exo['qfrc_actuator_l'])
+
         with open(qfrc_with_exo_path, 'r') as file:
             qfrc_without_exo = yaml.safe_load(file)
         qfrc_with_exo_r = np.array(qfrc_without_exo['qfrc_actuator_r'])
@@ -178,8 +156,8 @@ def main():
         # mujoco.viewer.launch(model, data)
 
 if __name__ == "__main__":
-    # main()
-    model_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/mjc/full_body.xml"
+    main()
+    model_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/mjc/mj_fullbody_with_exo_carrying_weld.xml"
     model = mujoco.MjModel.from_xml_path(model_path)
     data = mujoco.MjData(model)
     mujoco.viewer.launch(model, data)

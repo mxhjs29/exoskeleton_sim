@@ -57,7 +57,7 @@ motor_scale = []
 pos_scale = []
 vel_scale = []
 for xml_id in range(xml_length):
-    model_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/mjc/mj_fullbody_without_exo_carrying.xml"
+    model_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/mjc/mj_fullbody_with_exo_carrying.xml"
     # model_path = xml_files[xml_id]
     sim, joints_id, actuators_id, bodys_id, sites_id = load_model(model_path, joints, actuators, bodys, sites)
     for key, value in muscle_dict.items():
