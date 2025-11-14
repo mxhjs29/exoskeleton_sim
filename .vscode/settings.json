@@ -1,0 +1,19 @@
+{
+    // 选择你的 Conda 环境
+    "python.defaultInterpreterPath": "/home/chenshuo/anaconda3/envs/move_sim/bin/python",
+
+    // 让 VSCode 运行时保持项目根目录，而不是文件所在目录
+    "python.terminal.executeInFileDir": false,
+
+    // 自动为你激活 conda 环境
+    "python.terminal.activateEnvironment": true,
+
+    // 让 VSCode 识别你的 conda
+    "python.condaPath": "/home/chenshuo/anaconda3/bin/conda",
+
+    // 终端使用 bash（可选）
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "python-envs.defaultEnvManager": "ms-python.python:conda",
+    "python-envs.defaultPackageManager": "ms-python.python:conda",
+    "python-envs.pythonProjects": []
+}

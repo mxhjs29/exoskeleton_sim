@@ -1,11 +1,5 @@
-SMPL/example/
+SMPL/log/
 
-SMPL/callback_log/
+SMPL/model/
 
-SMPL/video_whole_body/
-
-SMPL/tb_logs/
-
-SMPL/saved_model/
-
-*.pkl
+SMPL/data/tb_logs/
