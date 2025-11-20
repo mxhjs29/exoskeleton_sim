@@ -4,11 +4,11 @@ SMPL/model/
 
 SMPL/data/tb_logs/
 
-./ray_results/
+ray_results/
 
-./final_training_logs/
+final_training_logs/
 
-./final_policy_checkpoints/
+final_policy_checkpoints/
 
-./best_policy/
+best_policy/
 
