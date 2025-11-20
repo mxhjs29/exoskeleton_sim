@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-from  myosuite.utils import gym
+import gymnasium as gym
 import yaml
 from myosuite.envs.obs_vec_dict import ObsVecDict
 from myosuite.utils.implement_for import implement_for
 from myosuite.utils.prompt_utils import prompt,Prompt
-from myosuite.envs.env_variants import gym_registry_specs, register_env_variant, register
+from myosuite.envs.env_variants import gym_registry_specs
 from SMPL.src.utils.common.model_load import *
 import pickle
 import SMPL.src.utils.np_transform_utils as npt_utils
@@ -13,9 +13,9 @@ from scipy.spatial.transform import Rotation as sRot
 from collections import OrderedDict
 import torch 
 import joblib
-from SMPL.src.assistance_policy import ExoNet
 import math
 from pettingzoo import ParallelEnv
+import functools
 
 file_path = "/home/chenshuo/PycharmProjects/move_sim/SMPL/data/imitation_data/initial_state_with_exo.yaml"
 with open(file_path,'r') as file:
@@ -30,15 +30,19 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             MyoSuite: a collection of environments/tasks to be solved by musculoskeletal models | https://sites.google.com/view/myosuite
             Code: https://github.com/MyoHub/myosuite/stargazers (add a star to support the project)
         """
-    metadata = {"render_modes": ['human','rgb_array'], "render_fps": 30}
-    def __init__(self, model_path, seed=None,env_credits=DEFAULT_CREDIT,max_episode_steps = 2500, n_stacks=4, **kwargs):
+    metadata = {"render_modes": ['human','rgb_array'], "name": "marl_exo_env"}
+    def __init__(self,render_mode = None, model_path = None, seed=None,env_credits=DEFAULT_CREDIT,max_episode_steps = 1600, n_stacks=4, **kwargs):
         prompt("MyoSuite:> For environment credits, please cite -")
         prompt(env_credits, color="cyan", type=Prompt.ONCE)
 
         self.seed(seed)
-        self.agents = ["human","exo"]
+        self.possible_agents = ["human","exo"]
+        self.agent_name_mapping = dict(
+            zip(self.possible_agents, list(range(len(self.possible_agents))))
+        )
+        self.render_mode = render_mode
         self.n_stacks = n_stacks
-        self.stacked_obs = None
+        
         self.sim = SimScene.get_sim(model_path)
         # 观测关节
         self.obs_joints = ['pelvis_tx','ankle_angle_r', 'hip_flexion_l','ankle_angle_l','lumbar_rotation']
@@ -56,11 +60,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
                               'vasmed_l_tendon', 'vaslat140_l_tendon', 'semiten_l_tendon', 'bflh140_l_tendon','glmed1_l_tendon'
                               ]
         self.muscle_tendon_id = {name: self.sim.model.tendon(name).id for name in self.muscle_tendon}
-        self.muscle_activation = {name: [] for name in self.muscle_tendon}
-        # 初始化，exo关节数据有没有
-        # self.sim.data.qpos[:] = joint_qpos[0]
+        self.muscle_activation = {name: [] for name in self.muscle_tendon}  
         qvel = np.zeros(len(joint_qvel[0]))
-        # self.sim.data.qvel[:] = qvel
         self.sim.forward()
         ObsVecDict.__init__(self)
         self.dataset_relative_pos, self.dataset_relative_quat, self.grap_actuators, self.grap_actuators_id = self._load_dataset(self.sim)
@@ -75,27 +76,19 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         self._setup(**kwargs)
 
     def _setup(self,
-               obs_keys: list = None,
+               human_obs_keys: list = None,
+               exo_obs_keys: list = None,
                weighted_reward_keys: dict = {},
-               render_bool: bool = True,
+               render_bool: bool = False,
                length_frame: int = 469,
                frame_skip: int = 2,
-               rwd_viz: bool = False,
-               device_id: int = 0,
                scale: int = 5,
                apply_muscle_activate: bool = True,
-               offline_render: bool = False,
                record_exo_force: bool = False,
             ):
 
         if self.sim is None:
             raise TypeError("sim must be instantiated for setup to run")
-        # resolve view
-        self.mujoco_render_frames = True
-        self.offline_render = offline_render
-        self.device_id = device_id
-        self.rwd_viz = rwd_viz
-        self.viewer_setup()
         # resolve action space
         self.frame_skip = frame_skip
         self.render_bool = render_bool
@@ -110,7 +103,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         self.rwd_keys_wt = weighted_reward_keys
         # resolve obs
         self.obs_dict = {}
-        self.obs_keys = obs_keys
+        self.human_obs_keys = human_obs_keys
+        self.exo_obs_keys = exo_obs_keys
         # resolve proprio
         self.body_names = ['pelvis','femur_r','tibia_r','talus_r','calcn_r','toes_r','patella_r',
                            'femur_l','tibia_l','talus_l','calcn_l','toes_l','patella_l','torso']
@@ -142,31 +136,55 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         self.tau_l = []
         self.tau_r = []
         self.run_exo = True
-        self.assistance_model = ExoNet()
-        self.assistance_model.load_state_dict(torch.load("/home/chenshuo/PycharmProjects/move_sim/SMPL/data/assistance_policy/exo_model.pth",weights_only=True))
-        self.assistance_model.eval()
-        self.scaler_X = joblib.load("/home/chenshuo/PycharmProjects/move_sim/SMPL/data/assistance_policy/scaler_X.pkl")
-        self.scaler_y = joblib.load("/home/chenshuo/PycharmProjects/move_sim/SMPL/data/assistance_policy/scaler_y.pkl")
         self.qfrc_actuator_r_avrage = []
         self.qfrc_actuator_l_avrage = []
-        observation = self.reset()
+        observations , infos = self.reset()
         assert not done,"Check initialization. Simulation starts in a done state."
-        self.observation_space = {
-            "human": gym.spaces.Box(low=-np.inf * np.ones(len(observation[0])),
-                                    high=np.inf * np.ones(len(observation[0])),
-                                    dtype=np.float64),
-            "exo": gym.spaces.Box(low=-np.inf * np.ones(len(observation[1])),
-                                    high=np.inf * np.ones(len(observation[1])),
-                                    dtype=np.float64)
+        self.observation_space_dict = {
+            "human": gym.spaces.Box(low=-np.inf * np.ones(len(observations["human"])),
+                                    high=np.inf * np.ones(len(observations["human"])),
+                                    dtype=np.float32),
+            "exo": gym.spaces.Box(low = -10 * np.ones(len(observations["exo"])),
+                                  high = 10 * np.ones(len(observations["exo"])),
+                                  dtype=np.float32)
         }
-        act_low = -np.ones(self.sim.model.na - 18) 
+        act_low = np.zeros(self.sim.model.na - 18) 
         act_high = np.ones(self.sim.model.na - 18) 
-        self.action_space = {
-            "human": gym.spaces.Box(act_low,act_high,dtype=np.float64),
-            "exo": gym.spaces.Box(-np.array([1,1]),np.array([2,2]),dtype=np.float64)
+        self.action_space_dict = {
+            "human": gym.spaces.Box(act_low,act_high,dtype=np.float32),
+            "exo": gym.spaces.Box(np.array([-0.261799,-0.261799]),np.array([1.0, 1.0]),dtype=np.float32)
         }
-
+        human_obs = self.get_obs(class_name="human")
+        exo_obs = self.get_obs(class_name="exo")
+        human_obs_stacked = [human_obs.copy() for _ in range(self.n_stacks)]
+        exo_obs_stacked = [exo_obs.copy() for _ in range(self.n_stacks)]
+        self.stacked_obs = {
+            "human" : human_obs_stacked,
+            "exo" : exo_obs_stacked
+        }
+        self.exo_actions = {}
         return
+
+    @functools.lru_cache(maxsize = None)
+    def observation_space(self, agent):
+        if agent == "human":
+            return self.observation_space_dict["human"]
+        elif agent == "exo":
+            return self.observation_space_dict["exo"]
+    
+    @functools.lru_cache(maxsize = None)
+    def action_space(self, agent):
+        if agent == "human":
+            return self.action_space_dict["human"]
+        elif agent == "exo":
+            return self.action_space_dict["exo"]
+        
+    
+    def close(self):
+        try:
+            del self.sim
+        except:
+            pass
 
     def activation_2_color(self, activation):
         # 确保激活度在 [0, 1] 范围内
@@ -201,172 +219,124 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             file_path = '/home/chenshuo/PycharmProjects/move_sim/SMPL/data/torque_record/muscle_activation.csv'
             df.to_csv(file_path, sep="\t", index=False)
             self.muscle_activation = {name: [] for name in self.muscle_tendon}
-            print("记录一次肌肉激活")
+            # print("记录一次肌肉激活")
 
-    def step(self,a, **kwargs):
+    def step(self,actions, **kwargs):
+        self.exo_actions = actions["exo"]
         step = 3
         if (self.flag_animation == 345):
-            step = 100
+            step = 50
         if (self.flag_animation == 147):
-            step = 100
+            step = 50
         if (self.flag_animation == 148):
             step = 3
         if (self.flag_animation == 346):
             step = 3
-        a = np.clip(a, self.action_space.low, self.action_space.high)
-        a = (a + 1.) / 2.
-        
-
         if self.flag_animation == 250:
             self.end_flag = 1
-
         if (self.flag_animation < 147 and self.end_flag == 0):
             command = 0
-            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command,a)
-
+            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command, actions["human"])
         if (self.flag_animation >= 147 and self.end_flag == 0):
             command = 1
             # 更改手部肌肉发力
-            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command,a)
-
+            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command, actions["human"])
         if (self.flag_animation >= 250 and self.end_flag == 1):
-            # action = np.ones(self.sim.model.nu) * 0
             command = 0
-            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command,a)
+            self.sim.data.ctrl[2:] = grasp_handle(self.sim.data.ctrl[2:], self.grap_actuators, self.grap_actuators_id, command, actions["human"])
+        
 
-        self.qfrc_actuator_r = (self.sim.data.qfrc_actuator[self.hip_joints_id['hip_flexion_r']]
-                                  - self.sim.data.qfrc_bias[self.hip_joints_id['hip_flexion_r']]
-                                  + self.sim.data.qfrc_passive[self.hip_joints_id['hip_flexion_r']])
-        self.qfrc_actuator_l = (self.sim.data.qfrc_actuator[self.hip_joints_id['hip_flexion_l']]
-                                - self.sim.data.qfrc_bias[self.hip_joints_id['hip_flexion_l']]
-                                + self.sim.data.qfrc_passive[self.hip_joints_id['hip_flexion_l']])
-        if self.record_exo_force:
-            if np.abs(self.qfrc_actuator_l) < 50:
-                self.exo_torque_l = np.clip(0.1 * self.qfrc_actuator_l, -5, 5)
-            elif np.abs(self.qfrc_actuator_l) < 150:
-                self.exo_torque_l = np.clip(0.2 * self.qfrc_actuator_l, -20, 20)
+        # self.qfrc_actuator_r = (self.sim.data.qfrc_actuator[self.hip_joints_id['hip_flexion_r']]
+        #                           - self.sim.data.qfrc_bias[self.hip_joints_id['hip_flexion_r']]
+        #                           + self.sim.data.qfrc_passive[self.hip_joints_id['hip_flexion_r']])
+        # self.qfrc_actuator_l = (self.sim.data.qfrc_actuator[self.hip_joints_id['hip_flexion_l']]
+        #                         - self.sim.data.qfrc_bias[self.hip_joints_id['hip_flexion_l']]
+        #                         + self.sim.data.qfrc_passive[self.hip_joints_id['hip_flexion_l']])
+ 
+             
+
+        if self.count % 5 == 0:
+            if self.run_exo:
+                exo_torque_set = self.exo_pd_control(kp=50, kd=14.14, target_pos=actions["exo"])
+                self.sim.data.ctrl[0] = exo_torque_set[0]
+                self.sim.data.ctrl[1] = exo_torque_set[1]
             else:
-                self.exo_torque_l = self.qfrc_actuator_l * 0.4
-
-            if np.abs(self.qfrc_actuator_r) < 50:
-                self.exo_torque_r = np.clip(0.1 * self.qfrc_actuator_r, -5, 5)
-            elif np.abs(self.qfrc_actuator_r) < 150:
-                self.exo_torque_r = np.clip(0.2 * self.qfrc_actuator_r, -20, 20)
-            else:
-                self.exo_torque_r =  self.qfrc_actuator_r * 0.4
-
-            self.timestamp.append(self.time)
-            self.theta_l.append(self.sim.data.qpos[self.hip_joints_id['jActuatedLeftHip_rotx']])
-            self.dtheta_l.append(self.sim.data.qvel[self.hip_joints_id['jActuatedLeftHip_rotx']])
-            self.tau_l.append(self.exo_torque_l)
-            self.theta_r.append(self.sim.data.qpos[self.hip_joints_id['jActuatedRightHip_rotx']])
-            self.dtheta_r.append(self.sim.data.qvel[self.hip_joints_id['jActuatedRightHip_rotx']])
-            self.tau_r.append(self.exo_torque_r)
-            if self.flag_animation >= self.length_frame - 1:
-                self.timestamp = [t - self.timestamp[0] for t in self.timestamp]
-                data_exo = {
-                    'timestamp': self.timestamp,
-                    'theta_l': self.theta_l,
-                    'dtheta_l': self.dtheta_l,
-                    'tau_l': self.tau_l,
-                    'theta_r': self.theta_r,
-                    'dtheta_r': self.dtheta_r,
-                    'tau_r': self.tau_r
-                }
-                exo_data_path = '/home/chenshuo/PycharmProjects/move_sim/SMPL/data/obs_truth/exo_im_data.csv'
-                with open(exo_data_path, 'w') as f:
-                    writer = pd.DataFrame(data_exo)
-                    writer.to_csv(f, sep="\t", index=False)
-                print("保存一次外骨骼数据")
-
-        if self.run_exo:
-            x_real = np.array([[self.sim.data.qpos[self.hip_joints_id['jActuatedLeftHip_rotx']],
-                                self.sim.data.qvel[self.hip_joints_id['jActuatedLeftHip_rotx']],
-                                self.sim.data.qpos[self.hip_joints_id['jActuatedRightHip_rotx']],
-                                self.sim.data.qvel[self.hip_joints_id['jActuatedRightHip_rotx']]
-                                ]])
-            x_scaled = self.scaler_X.transform(x_real)
-            x_tensor = torch.tensor(x_scaled, dtype=torch.float32)
-            with torch.no_grad():
-                y_pred = self.assistance_model(x_tensor).numpy()
-            y_real = self.scaler_y.inverse_transform(y_pred)
-            self.exo_torque_l = y_real[0, 0]
-            self.exo_torque_r = y_real[0, 1]
-            self.sim.data.ctrl[0] = self.exo_torque_l
-            self.sim.data.ctrl[1] = self.exo_torque_r
-        else:
-            self.sim.data.ctrl[0] = 0
-            self.sim.data.ctrl[1] = 0
+                self.sim.data.ctrl[0] = 0
+                self.sim.data.ctrl[1] = 0
 
         if self.count % step == 0 and self.flag_animation < self.length_frame:
             # mocap的更新频率要慢一些
             self.applied_uplimb_mocap(self.dataset_relative_pos, self.dataset_relative_quat, self.flag_animation)
             self.flag_animation += 1
                 
-        self.plot_draw()
-        self.activation_to_color(self.sim.model, self.sim.data)
-        self.record_muscle_activation()
+        # self.plot_draw()
+        # self.activation_to_color(self.sim.model, self.sim.data)
+        # self.record_muscle_activation()
         self.sim.advance(substeps=self.frame_skip, render=self.render_bool)
         self.sim.forward()
-
         self.count = self.count + 1
-        if (self.offline_render):
-            self.frame = self.render_offscreen()
-        else:
-            self.frame = None
-        self.muscle_activate = []
-        return self.forward(**kwargs)
 
-    @implement_for("gym", None, "0.24")
-    def forward(self, **kwargs):
-        return self._forward(**kwargs)
-
-    @implement_for("gym", "0.24", None)
-    def forward(self, **kwargs):
-        obs, reward, done, truncated,info = self._forward(**kwargs)
-        terminal = done
-        print(reward)
-        return obs, reward, terminal, truncated, info
-
-    @implement_for("gymnasium")
-    def forward(self, **kwargs):
-        obs, reward, done, truncated,info = self._forward(**kwargs)
-        terminal = done
-        # print(self.flag_animation,reward)
-        return obs, reward, terminal, truncated, info
-
-    def _forward(self,**kwargs):
-        if self.mujoco_render_frames:
+        if self.render_bool:
             self.mj_render()
         # obs
-        obs = self.get_obs(**kwargs)
-        self.stacked_obs.append(obs)
-        if len(self.stacked_obs) > self.n_stacks:
-            self.stacked_obs.pop(0)
-        stack_obs = self._get_stacked_obs()
+        human_obs = self.get_obs(class_name="human",**kwargs)
+        exo_obs = self.get_obs(class_name="exo",**kwargs)
+        self.stacked_obs["human"].append(human_obs)
+        self.stacked_obs["exo"].append(exo_obs)
+        if len(self.stacked_obs["human"]) > self.n_stacks:
+            self.stacked_obs["human"].pop(0)
+        if len(self.stacked_obs["exo"]) > self.n_stacks:
+            self.stacked_obs["exo"].pop(0)
+
+        observations = {
+            "human": self._get_stacked_obs(self.stacked_obs["human"]),
+            "exo": self._get_stacked_obs(self.stacked_obs["exo"])
+        }
 
         # rwd
         self.expand_dims(self.obs_dict)
         self.rwd_dict = self.get_reward_dict(self.obs_dict)
+        rewards = {
+            "human": float(self.rwd_dict["human_reward"]),
+            "exo": float(self.rwd_dict["exo_reward"])
+        }
         self.squeeze_dims(self.rwd_dict)
         self.squeeze_dims(self.obs_dict)
         #final step
-        env_info = self.get_env_info()
+        infos = self.get_env_info()
+        terminateds = {
+            "human": bool(self.rwd_dict["done"][0]),
+            "exo": bool(self.rwd_dict["done"][1])
+        }
+        terminateds["__all__"] = all(terminateds[a] for a in self.agents)
         if self.count >= self.max_episode_steps:
-            truncated = True
+            truncateds = {
+            "human": True,
+            "exo": True,
+            "__all__": True
+            }
         else:
-            truncated = False
+            truncateds = {
+            "human": False,
+            "exo": False,
+            "__all__": False
+            }
         if self.flag_animation >= self.length_frame-1:
             self.flag_animation = 0
-        return stack_obs, env_info['rwd_pose'], env_info['done'], truncated, env_info
+        return observations, rewards, terminateds, truncateds, infos
 
-    def get_obs(self,update_proprioception=True, update_exteroception=False, **kwargs):
+    def get_obs(self,class_name=None, **kwargs):
         self.get_obs_dict(self.obs_dict)
-        t,obs = self.obsdict2obsvec(self.obs_dict,self.obs_keys)
-        return obs
+        if class_name == "human":
+            t,obs = self.obsdict2obsvec(self.obs_dict,self.human_obs_keys)
+            return obs
+        elif class_name == "exo":
+            t,obs = self.obsdict2obsvec(self.obs_dict,self.exo_obs_keys)
+            return obs
 
-    def _get_stacked_obs(self):
-        return np.concatenate(self.stacked_obs, axis=0, dtype=np.float64)
+
+    def _get_stacked_obs(self, stacked_obs=None):
+        return np.concatenate(stacked_obs, axis=0, dtype=np.float32)
 
     def get_proprioception(self):
         obs_proprio = OrderedDict()
@@ -394,15 +364,15 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
 
     def get_env_info(self):
         env_info = {
-            'time': self.obs_dict['time'][()],  # MDP(t)
-            'rwd_pose': self.rwd_dict['R_p'][()],  # MDP(t)
-            'done': self.rwd_dict['done'][()],  # MDP(t)
-            'obs_dict': self.obs_dict,  # MDP(t)
-            'rwd_dict': self.rwd_dict,  # MDP(t)
-            'state': self.get_env_state(),  # MDP(t)
-            'stack_obs': self.stacked_obs,
-            'muscle_activate': self.muscle_activate,
-            'frame': self.frame
+            "human": {
+                "R_p": float(self.rwd_dict["R_p"]),
+                "R_proprio": float(self.rwd_dict["R_proprio"]),
+                "R_a": float(self.rwd_dict["R_a"]),
+            },
+            "exo": {
+                "R_t": float(self.rwd_dict["R_t"]),
+                "R_eas": float(self.rwd_dict["R_eas"]),
+            },
         }
         return env_info
 
@@ -414,8 +384,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
     def get_input_seed(self):
         return self.input_seed
 
-    def _reset(self,reset_qpos=None, options=None, reset_qvel=None, seed=None):
-
+    def reset(self, *, seed=None, options=None):
+        self.agents = self.possible_agents[:]
         length_pos, qpos_gt, qvel_gt, local_body_pos, local_body_rot, local_body_vel, local_body_angle_vel = obs_data_load(obs_true_path, self.index)
         self.length_frame = 469
         self.qpos_gt = qpos_gt
@@ -430,21 +400,16 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         self.sim.reset()
         self.sim.advance(substeps=self.frame_skip, render=self.render_bool)
         self.sim.forward()
-        obs = self.get_obs()
-        self.stacked_obs = [obs.copy() for _ in range(self.n_stacks)]
-        return self._get_stacked_obs()
-
-    @implement_for("gym", None, "0.26")
-    def reset(self, reset_qpos=None, reset_qvel=None, **kwargs):
-        return self._reset(reset_qpos=reset_qpos, reset_qvel=reset_qvel, **kwargs)
-
-    @implement_for("gym", "0.26", None)
-    def reset(self, reset_qpos=None, reset_qvel=None, **kwargs):
-        return self._reset(reset_qpos=reset_qpos, reset_qvel=reset_qvel, **kwargs), {}
-
-    @implement_for("gymnasium")
-    def reset(self, reset_qpos=None, reset_qvel=None, seed=None, options=None, **kwargs):
-        return self._reset(reset_qpos=reset_qpos, reset_qvel=reset_qvel, seed=seed, **kwargs), {}
+        human_obs = self.get_obs(class_name="human")
+        exo_obs = self.get_obs(class_name="exo")
+        human_obs_stacked = [human_obs.copy() for _ in range(self.n_stacks)]
+        exo_obs_stacked = [exo_obs.copy() for _ in range(self.n_stacks)]
+        observations = {
+            "human": self._get_stacked_obs(human_obs_stacked),
+            "exo": self._get_stacked_obs(exo_obs_stacked)
+        }
+        infos = {agent: {} for agent in self.agents}
+        return observations, infos
 
     @property
     def dt(self):
@@ -496,19 +461,6 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
     def mj_render(self):
         self.sim.renderer.render_to_window()
 
-
-    def viewer_setup(self,distance=2.5,azimuth=90,elevation=-30, lookat=None, render_actuator=None, render_tendon=None):
-        self.sim.renderer.set_free_camera_settings(
-            distance=distance,
-            azimuth=azimuth,
-            elevation=elevation,
-            lookat=lookat
-        )
-        self.sim.renderer.set_viewer_settings(
-            render_actuator=render_actuator,
-            render_tendon=render_tendon
-        )
-
     def get_obs_dict(self, obs_dict=None):
         # 观测字典
         obs_dict['frame'] = np.array([self.flag_animation])
@@ -522,15 +474,20 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         obs_dict['qfrc_constraint'] = np.nan_to_num(obs_dict['qfrc_constraint'], nan=0, posinf=300, neginf=-300)
         obs_dict['exo_torque_t'] = self.sim.data.ctrl[:2].copy()
         #外骨骼关节角度设定值，需要从外骨骼控制器中获取
-        if self.count >= 2:
-            obs_dict['exo_joint_set_t2'] = self.obs_dict['exo_joint_set_t1']
+        obs_dict['exo_joint_t'] = self.sim.data.qpos[self.hip_joints_id['jActuatedRightHip_rotx']:self.hip_joints_id['jActuatedLeftHip_rotx']+1].copy()
+        obs_dict['exo_joint_vel_t'] = self.sim.data.qvel[self.hip_joints_id['jActuatedRightHip_rotx']:self.hip_joints_id['jActuatedLeftHip_rotx']+1].copy()
+        if self.count >= 1:
+            if self.count >= 2:
+                if self.count >= 3:
+                    obs_dict['exo_joint_set_t2'] = self.obs_dict['exo_joint_set_t1']
+                obs_dict['exo_joint_set_t1'] = obs_dict['exo_joint_set_t']
+            obs_dict['exo_joint_set_t'] = np.array(self.exo_actions)
         else:
-            obs_dict['exo_joint_set_t2'] = np.array([0,0])
-        if self.count >=1:
-            obs_dict['exo_joint_set_t1'] = self.obs_dict['exo_joint_set_t']
-        else:
+            obs_dict['exo_joint_set_t'] = np.array([0,0])
             obs_dict['exo_joint_set_t1'] = np.array([0,0])
-        obs_dict['exo_joint_set_t'] = np.array([0,0])
+            obs_dict['exo_joint_set_t2'] = np.array([0,0])
+        
+        
         #添加proprioception观测，pelvis，femur_r，tibia_r，femur_l，tibia_l，torso
         #添加proprioception的真值
         obs_dict['local_body_pos_gt'] = self.local_body_pos_gt[self.count]
@@ -544,7 +501,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             (obs_dict['local_body_rot_gt'] - obs_dict['local_body_rot_obs']).ravel(),
             (obs_dict['local_body_vel_gt'] - obs_dict['local_body_vel']).ravel(),
             (obs_dict['local_body_angle_vel_gt'] - obs_dict['local_body_angle_vel']).ravel()],
-            axis=-1)
+            axis=-1,
+            dtype = np.float32)
         return None
 
     def get_reward_dict(self,obs_dict):
@@ -579,9 +537,12 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         reward_dict['R_eas'] = self.rwd_keys_wt['w_exo_smooth'] * math.exp( -self.rwd_keys_wt['theta_exo_smooth'] * exo_smooth)
 
         if (self.flag_animation >= self.length_frame - 1):
-            reward_dict['done'] = True
+            reward_dict['done'] = [True, True]
         else:
-            reward_dict['done'] = False
+            reward_dict['done'] = [False, False]
+        
+        reward_dict["human_reward"] = reward_dict['R_p'] + reward_dict['R_proprio'] + reward_dict['R_a']
+        reward_dict["exo_reward"] = reward_dict['R_p'] + reward_dict['R_proprio'] + reward_dict['R_a'] + reward_dict['R_t'] + reward_dict['R_eas']
         return reward_dict
 
     def render_offscreen(self, width=800, height=1000, camera_id=1):
@@ -615,6 +576,17 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
         self.sim.data.mocap_quat[36] = dataset_relative_quat['left_arm'][2][:, flag_animation, :].squeeze()
         self.sim.data.mocap_pos[37] = self.sim.data.mocap_pos[36].copy() + dataset_relative_pos['left_arm'][2][:, flag_animation,:].squeeze()
         self.sim.data.mocap_quat[37] = dataset_relative_quat['left_arm'][3][:, flag_animation, :].squeeze()
+
+    def exo_pd_control(self, kp, kd, target_pos):
+        if self.count == 0:
+            self.prev_pos = np.zeros(2)
+        else:
+            self.prev_pos = self.current_pos
+        self.current_pos = self.sim.data.qpos[self.hip_joints_id['jActuatedRightHip_rotx']:self.hip_joints_id['jActuatedLeftHip_rotx']+1]
+        current_vel = (self.current_pos - self.prev_pos) / (self.dt * 5)
+        position_error = target_pos - self.current_pos
+        control_torque = kp * position_error - kd * current_vel
+        return control_torque
 
     def plot_draw(self):
         if self.count == 0:
@@ -650,7 +622,7 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
                 with open(qfrc_actuator_with_exo_path,'w') as file:
                     yaml.safe_dump(data_to_save_yaml, file, default_flow_style=False)
                 self.n = 0
-                print("已记录", self.N, "次平均值", qfrc_actuator_with_exo_path)
+                # print("已记录", self.N, "次平均值", qfrc_actuator_with_exo_path)
 
     def calculate_hight_weight(self):
         foot_pos = self.sim.data.site_xpos[self.sites_id['SMPL_10']].copy()
@@ -681,8 +653,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             })
             # 累加总质量
             total_mass += mass
-        print("human_height", height)
-        print("human_mass", total_mass)
+        # print("human_height", height)
+        # print("human_mass", total_mass)
 
 
 
@@ -893,7 +865,6 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             dataset_relative_quat['left_arm'].append(left_arm_rot)
             dataset_relative_quat['right_arm'].append(right_arm_rot)
 
-        print("dataset处理完")
         return dataset_relative_pos,dataset_relative_quat, muscle_dict, actuators_id
 
 
@@ -963,42 +934,4 @@ def compute_self_observations(body_pos: np.ndarray, body_rot: np.ndarray, body_v
     obs["local_body_angle_vel"] = flat_local_body_ang_vel.reshape(body_ang_vel.shape[0], body_ang_vel.shape[1] * body_ang_vel.shape[2])
 
     return obs
-
-
-def register_env_with_variants(id, entry_point, max_episode_steps, kwargs):
-    # register_env_with_variants base env
-    register(
-        id=id,
-        entry_point=entry_point,
-        max_episode_steps=max_episode_steps,
-        kwargs=kwargs
-    )
-    # env_names = [spec for spec in gym.envs.registry]
-    # for name in sorted(env_names):
-    #     print(name)
-    #register variants env with sarcopenia
-    if id[:3] == "myo":
-        register_env_variant(
-            env_id=id,
-            variants={'muscle_condition':'sarcopenia'},
-            variant_id=id[:3]+"Sarc"+id[3:],
-            silent=True
-        )
-    #register variants with fatigue
-    if id[:3] == "myo":
-        register_env_variant(
-            env_id=id,
-            variants={'muscle_condition':'fatigue'},
-            variant_id=id[:3]+"Fati"+id[3:],
-            silent=True
-        )
-
-    #register variants with tendon transfer
-    if id[:7] == "myoHand":
-        register_env_variant(
-            env_id=id,
-            variants={'muscle_condition':'reafferentation'},
-            variant_id=id[:3]+"Reaf"+id[3:],
-            silent=True
-        )
 
