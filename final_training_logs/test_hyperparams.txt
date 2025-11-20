@@ -1,6 +1,0 @@
-=== 最优超参数组合 ===
-w_pos_err: 0.4
-w_proprio_err: 0.4
-w_activation: 0.4
-w_exo_energy: 0.2
-w_exo_smooth: 0.2
