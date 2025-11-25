@@ -26,7 +26,7 @@ class HumanModel(TorchModelV2, nn.Module):
         x = torch.tanh(self.fc1(x))
         x = torch.tanh(self.fc2(x))
         x = torch.tanh(self.fc3(x))
-        logits = self.policy_head(x)
+        logits = torch.tanh(self.policy_head(x))
         # 保存 value 给 value_function() 用
         self._last_value = self.value_head(x).squeeze(-1)
 
@@ -57,7 +57,7 @@ class ExoModel(TorchModelV2, nn.Module):
         x = input_dict["obs_flat"]
         x = torch.tanh(self.fc1(x))
         x = torch.tanh(self.fc2(x))
-        logits = self.policy_head(x)
+        logits = torch.tanh(self.policy_head(x))
         # 保存 value 给 value_function() 用
         self._last_value = self.value_head(x).squeeze(-1)
 

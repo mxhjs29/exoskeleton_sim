@@ -148,11 +148,11 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
                                   high = 10 * np.ones(len(observations["exo"])),
                                   dtype=np.float32)
         }
-        act_low = np.zeros(self.sim.model.na - 18) 
+        act_low = -np.ones(self.sim.model.na - 18) 
         act_high = np.ones(self.sim.model.na - 18) 
         self.action_space_dict = {
             "human": gym.spaces.Box(act_low,act_high,dtype=np.float32),
-            "exo": gym.spaces.Box(np.array([-0.261799,-0.261799]),np.array([1.0, 1.0]),dtype=np.float32)
+            "exo": gym.spaces.Box(np.array([-1.0, -1.0]),np.array([1.0, 1.0]),dtype=np.float32)
         }
         human_obs = self.get_obs(class_name="human")
         exo_obs = self.get_obs(class_name="exo")
@@ -183,8 +183,10 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
     def close(self):
         try:
             del self.sim
+            return 0
         except:
-            pass
+            print("NOT CLOSE SIM")
+            return 0
 
     def activation_2_color(self, activation):
         # 确保激活度在 [0, 1] 范围内
@@ -222,6 +224,8 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             # print("记录一次肌肉激活")
 
     def step(self,actions, **kwargs):
+        actions["human"] = (actions["human"] + 1.0) / 2.0
+        actions["exo"] = 0.5 * (actions["exo"] + 1.0) * 1.261799 - 0.261799
         self.exo_actions = actions["exo"]
         step = 3
         if (self.flag_animation == 345):

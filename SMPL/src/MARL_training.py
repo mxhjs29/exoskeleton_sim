@@ -28,16 +28,16 @@ n_stacks = 2
 frame_skip = 2
 human_obs_keys = ['qpos','local_body_pos','local_body_vel','local_body_rot_obs','local_body_angle_vel']
 exo_obs_keys = ['exo_joint_t','exo_joint_vel_t']
-weighted_reward_keys = {'w_pos_err': 0.4,
-                        'w_proprio_err': 0.4,
+weighted_reward_keys = {'w_pos_err': 0.6,
+                        'w_proprio_err': 0.6,
                         'w_activation': 0.4,
                         'w_exo_energy':0.2,
                         'w_exo_smooth':0.2,
-                        'theta_pos_err': 0.5,
-                        'theta_proprio_err': 0.3,
+                        'theta_pos_err': 0.9,
+                        'theta_proprio_err': 0.55,
                         'theta_activation': 0.1,
                         'theta_exo_energy':0.1,
-                        'theta_exo_smooth':4}
+                        'theta_exo_smooth':3}
 
 def main():
     policies = register_env_policy()
@@ -46,7 +46,7 @@ def main():
 
     best = param_search(policies)
 
-    print("-----------------------网格搜索已完成------------------------")
+    print("----------------------------网格搜索已完成-------------------------")
     policies = register_env_policy()
     ray.init()
     save_dir = "final_policy_checkpoints"
@@ -77,10 +77,10 @@ def main():
     final_config = final_config.update_from_dict(config_dict = best.config)
     algo = final_config.build()
     algo.restore(best.checkpoint.path)
-    save_interval = 100    # 每 100 次 iteration 保存一次
-    max_iters = 6      # 可以设置你想训练多少 iteration（或无穷）
-    last_50_ckpts = deque(maxlen=2)
-    for i in range(max_iters):
+    save_interval = 10    # 每 100 次 iteration 保存一次
+    max_iters = 6    # 可以设置你想训练多少 iteration（或无穷）
+    last_50_ckpts = deque(maxlen=50)
+    for i in count(2):
         result = algo.train()
         reward = result["env_runners"]["module_episode_returns_mean"]["exo_policy"]
         print_training_summary(result)
@@ -102,10 +102,15 @@ def main():
 
             # 删除被挤掉的最旧 checkpoint
             if len(last_50_ckpts) == last_50_ckpts.maxlen:
-                oldest = last_50_ckpts[0]
-                if os.path.exists(oldest):
+                try:
+                    oldest = last_50_ckpts[0]["checkpoint_path"]
                     shutil.rmtree(oldest, ignore_errors=True)
                     print("[CLEAN] Removed old checkpoint")
+                except Exception as e:
+                    print(f"[WARN] Failed to clean old ckpt: {e}")
+                finally:
+                    # 无论成功失败，都移除最旧的元素，防止死循环
+                    last_50_ckpts.popleft()
 
     print(f"[BEST] save_path{abs_best_dir}")
     print(f"[LOGS] Training metrics saved to {metrics_csv_file}")
@@ -143,13 +148,22 @@ def register_env_policy():
             policy_class=None,
             observation_space=obs_spaces["human"],
             action_space=act_spaces["human"],
-            config={"model": {"custom_model": "human_model"}}
+            config={"model": {"custom_model": "human_model",
+                              "free_log_std": True,
+                              "log_std_init": -1.0,
+                              "log_std_clip": [-5.0, 1.5],},
+                    "entropy_coeff_schedule": [(0, 0.02), (5e7, 0.01), (1e9, 0.002)],}
         ),
         "exo_policy": PolicySpec(
             policy_class=None,
             observation_space=obs_spaces["exo"],
             action_space=act_spaces["exo"],
-            config={"model": {"custom_model": "exo_model"}}
+            config={"model": {"custom_model": "exo_model",
+                              "vf_share_layers": False,
+                              "free_log_std": True,
+                              "log_std_init": -0.5,   
+                              "log_std_clip": [-5.0, 2.0],},
+                    "entropy_coeff_schedule": [(0, 0.02), (5e8, 0.01), (1e10, 0.002)],}
         ),
     }
     return policies
@@ -198,18 +212,28 @@ def param_search(policies):
         )
         .framework("torch")
         .env_runners(
-            num_env_runners=1,           
-            num_envs_per_env_runner=2,   
-            num_cpus_per_env_runner=1,   
+            num_env_runners=4,           
+            num_envs_per_env_runner=4,   
+            num_cpus_per_env_runner=2,   
             rollout_fragment_length="auto",
             sample_timeout_s=120,
         )
         .training(
             gamma=0.99,
-            lr=5e-4,
-            train_batch_size=128,
-            num_epochs=10,
+            lr=3e-4,
+            lambda_=0.95,
+            clip_param=0.2,
+            grad_clip=0.5,
+            vf_loss_coeff=1.5,
+            vf_clip_param=10.0,
+            kl_coeff=0.2,
+            kl_target=0.01
         )
+        .update_from_dict({
+            "train_batch_size": 65536,
+            "sgd_minibatch_size": 2048,
+            "num_epochs": 20,
+        })
         .multi_agent(
             policies=policies,
             policy_mapping_fn=policy_mapping_fn,
@@ -221,7 +245,7 @@ def param_search(policies):
     base_cfg.batch_mode = "complete_episodes"
     param_space = base_cfg.to_dict()
     wr = param_space["env_config"]["weighted_reward_keys"]
-    wr["w_pos_err"]     = tune.grid_search([0.4, 0.5])
+    wr["w_pos_err"]     = tune.grid_search([0.5])
     # wr["w_proprio_err"] = tune.grid_search([0.5, 0.6, 0.7])
     # wr["w_activation"]  = tune.grid_search([0.3, 0.4, 0.5])
     # wr["w_exo_energy"]  = tune.grid_search([0.05, 0.1, 0.2])
@@ -231,7 +255,7 @@ def param_search(policies):
     abs_path = os.path.abspath(relative_path)
     run_cfg = air.RunConfig(
         name="marl_exo_reward_grid",
-        stop={"training_iteration": 7},             # 每个网格训练 30 iter，可按需调整
+        stop={"training_iteration": 1},             # 每个网格训练 30 iter，可按需调整
         storage_path=f"file://{abs_path}",                     # 结果输出目录
         verbose=1
     )
