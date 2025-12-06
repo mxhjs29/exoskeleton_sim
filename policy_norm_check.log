@@ -1,0 +1,167 @@
+======================================================================
+🔍 检查策略中的标准化实现
+======================================================================
+
+
+[EXO_POLICY]
+──────────────────────────────────────────────────────────────────────
+
+✓ 检查: learner_group/learner/rl_module/exo_policy/class_and_ctor_args.pkl
+  类: <class 'ray.rllib.algorithms.ppo.torch.default_ppo_torch_rl_module.DefaultPPOTorchRLModule'>
+  构造函数参数数量: 2
+
+  参数 0:
+
+  参数 1:
+      observation_space: Box = Box(-10.0, 10.0, (8,), float32)
+      action_space: Box = Box(-1.0, 1.0, (2,), float32)
+      inference_only: bool = False
+      learner_only: bool = False
+      model_config: dict (1 个键)
+          vf_share_layers: bool = False
+      catalog_class: type = <class 'ray.rllib.algorithms.ppo.ppo_catalog.PPOCa
+
+✓ 检查: learner_group/learner/rl_module/exo_policy/module_state.pkl
+  权重数量: 14
+  权重名称:
+    ✓ [NORM] encoder.actor_encoder.net.mlp.0.bias
+       encoder.actor_encoder.net.mlp.0.weight
+    ✓ [NORM] encoder.actor_encoder.net.mlp.2.bias
+       encoder.actor_encoder.net.mlp.2.weight
+    ✓ [NORM] encoder.critic_encoder.net.mlp.0.bias
+       encoder.critic_encoder.net.mlp.0.weight
+    ✓ [NORM] encoder.critic_encoder.net.mlp.2.bias
+       encoder.critic_encoder.net.mlp.2.weight
+    ✓ [NORM] pi.log_std_clip_param_const
+    ✓ [NORM] pi.net.mlp.0.bias
+       pi.net.mlp.0.weight
+    ✓ [NORM] vf.log_std_clip_param_const
+    ✓ [NORM] vf.net.mlp.0.bias
+       vf.net.mlp.0.weight
+
+  ⭐ 发现 8 个标准化相关的权重！
+
+[HUMAN_POLICY]
+──────────────────────────────────────────────────────────────────────
+
+✓ 检查: learner_group/learner/rl_module/human_policy/class_and_ctor_args.pkl
+  类: <class 'ray.rllib.algorithms.ppo.torch.default_ppo_torch_rl_module.DefaultPPOTorchRLModule'>
+  构造函数参数数量: 2
+
+  参数 0:
+
+  参数 1:
+      observation_space: Box = Box(-inf, inf, (496,), float32)
+      action_space: Box = Box(-1.0, 1.0, (98,), float32)
+      inference_only: bool = False
+      learner_only: bool = False
+      model_config: dict (1 个键)
+          vf_share_layers: bool = False
+      catalog_class: type = <class 'ray.rllib.algorithms.ppo.ppo_catalog.PPOCa
+
+✓ 检查: learner_group/learner/rl_module/human_policy/module_state.pkl
+  权重数量: 14
+  权重名称:
+    ✓ [NORM] encoder.actor_encoder.net.mlp.0.bias
+       encoder.actor_encoder.net.mlp.0.weight
+    ✓ [NORM] encoder.actor_encoder.net.mlp.2.bias
+       encoder.actor_encoder.net.mlp.2.weight
+    ✓ [NORM] encoder.critic_encoder.net.mlp.0.bias
+       encoder.critic_encoder.net.mlp.0.weight
+    ✓ [NORM] encoder.critic_encoder.net.mlp.2.bias
+       encoder.critic_encoder.net.mlp.2.weight
+    ✓ [NORM] pi.log_std_clip_param_const
+    ✓ [NORM] pi.net.mlp.0.bias
+       pi.net.mlp.0.weight
+    ✓ [NORM] vf.log_std_clip_param_const
+    ✓ [NORM] vf.net.mlp.0.bias
+       vf.net.mlp.0.weight
+
+  ⭐ 发现 8 个标准化相关的权重！
+
+======================================================================
+📝 检查 custom_policy.py 中的实现
+======================================================================
+
+🔍 代码中的关键词搜索:
+
+✗ [标准化实现] 未发现
+✓ [输入处理] 发现: ['input']
+    第 23 行: def forward(self, input_dict, state, seq_lens):
+    第 25 行: x = input_dict["obs_flat"]
+    第 55 行: def forward(self, input_dict, state, seq_lens):
+    第 57 行: x = input_dict["obs_flat"]
+✗ [统计信息] 未发现
+✗ [滤波器] 未发现
+
+✓ 类定义检查:
+  ✓ 发现: class HumanModel
+  ✓ 发现: class ExoModel
+  ✓ 发现: def forward
+
+======================================================================
+🌍 检查环境中的标准化
+======================================================================
+
+🔍 环境中的方法检查:
+
+✓ 发现方法: reset()
+  ⚠ 可能包含标准化逻辑
+✓ 发现方法: step()
+  ⚠ 可能包含标准化逻辑
+
+✓ 全局搜索标准化实现:
+
+  第 144 行: "human": gym.spaces.Box(low=-np.inf * np.ones(len(observations["human"])),
+  第 145 行: high=np.inf * np.ones(len(observations["human"])),
+  第 147 行: "exo": gym.spaces.Box(low = -10 * np.ones(len(observations["exo"])),
+  第 148 行: high = 10 * np.ones(len(observations["exo"])),
+  第 286 行: human_obs = self.get_obs(class_name="human",**kwargs)
+  第 287 行: exo_obs = self.get_obs(class_name="exo",**kwargs)
+  第 332 行: def get_obs(self,class_name=None, **kwargs):
+  第 475 行: obs_dict['qpos_error'] = obs_dict['qpos_gt'] - obs_dict['qpos']
+  第 504 行: (obs_dict['local_body_pos_gt'] - obs_dict['local_body_pos']).ravel(),
+  第 505 行: (obs_dict['local_body_rot_gt'] - obs_dict['local_body_rot_obs']).ravel(),
+  第 506 行: (obs_dict['local_body_vel_gt'] - obs_dict['local_body_vel']).ravel(),
+  第 507 行: (obs_dict['local_body_angle_vel_gt'] - obs_dict['local_body_angle_vel']).ravel()],
+  第 540 行: exo_smooth = np.sum((obs_dict['exo_joint_set_t'] - 2 * obs_dict['exo_joint_set_t1'] + obs_dict['exo_
+  第 887 行: - `root_h_obs`: Root height observation.
+  第 889 行: - `local_body_rot_obs`: Local body rotations in tangent-normalized format.
+  第 928 行: body_rot.shape[0], body_rot.shape[1] * flat_local_body_rot_obs.shape[1]
+  第 934 行: obs["local_body_vel"] = flat_local_body_vel.reshape(body_vel.shape[0], body_vel.shape[1] * body_vel.
+  第 938 行: obs["local_body_angle_vel"] = flat_local_body_ang_vel.reshape(body_ang_vel.shape[0], body_ang_vel.sh
+
+======================================================================
+📌 检查总结与建议
+======================================================================
+
+
+根据检查结果，标准化可能出现在以下位置：
+
+┌─ 情况 A: 标准化在策略中实现
+│  ├─ 表现: 权重中包含 BatchNorm、LayerNorm 等层
+│  ├─ 影响: 推理时无需额外处理
+│  └─ 验证: 查看权重名称是否包含 'norm'
+│
+├─ 情况 B: 标准化在环境中实现
+│  ├─ 表现: MARL_env.py 的 reset()/step() 返回标准化后的观测值
+│  ├─ 影响: 推理时需要使用相同的标准化逻辑
+│  └─ 验证: 查看环境代码的观测值处理
+│
+└─ 情况 C: 无标准化处理
+   ├─ 表现: 直接使用原始观测值
+   ├─ 影响: 推理时无需任何处理
+   └─ 验证: 权重和代码中都未发现标准化
+
+🔧 下一步建议：
+
+1️⃣ 如果发现权重包含 'norm':
+   └─ ✓ 推理时无需额外处理
+
+2️⃣ 如果环境代码包含标准化:
+   └─ 需要提取平均值和标准差
+   └─ 在推理时应用相同的变换
+
+3️⃣ 如果都没有发现:
+   └─ 直接使用原始观测值进行推理
+

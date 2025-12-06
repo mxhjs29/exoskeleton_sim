@@ -274,7 +274,7 @@ class MARL_EXO_Env(ParallelEnv, ObsVecDict):
             self.flag_animation += 1
                 
         # self.plot_draw()
-        # self.activation_to_color(self.sim.model, self.sim.data)
+        self.activation_to_color(self.sim.model, self.sim.data)
         # self.record_muscle_activation()
         self.sim.advance(substeps=self.frame_skip, render=self.render_bool)
         self.sim.forward()

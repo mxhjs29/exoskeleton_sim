@@ -10,7 +10,6 @@ final_training_logs/
 
 final_policy_checkpoints/
 
-best_policy/
 
 deployed_policy/
 
